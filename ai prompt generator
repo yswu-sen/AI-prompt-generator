@@ -1,0 +1,454 @@
+import React, { useState, useEffect } from 'react';
+import { Copy, PenTool, Image as ImageIcon, Sparkles, BookOpen, Check, Layers, ChevronRight, Wand2, Bot } from 'lucide-react';
+
+// --- 資料庫 (基於您提供的 Markdown 檔案內容，並針對您的常用工具優化用途說明) ---
+
+// 1. 報告與文章類型資料 (Text Prompts)
+const REPORT_DATA = {
+  "職場生產力": [
+    { id: "summary", name: "重點摘要/懶人包", desc: "適合 NotebookLM 導入文件，快速生成核心摘要", role: "資訊分析師", template: "請閱讀以下內容，並將其濃縮為 5-10 個核心重點摘要 (Key Takeaways)。請使用條列式呈現，確保邏輯清晰，適合快速閱讀。\n\n內容：{{input}}" },
+    { id: "minutes", name: "會議紀要與行動清單", desc: "適合 Google AI Studio 處理長篇逐字稿，整理決議", role: "行政專員", template: "請將以下雜亂的會議討論內容，整理成一份標準的會議紀要表格。需包含：議題、決議、負責人、截止日期 (Deadline)。並在最後列出具體的「下一步行動 (Next Steps)」。\n\n會議內容：{{input}}" },
+    { id: "sop", name: "SOP 標準作業程序", desc: "適合 ChatGPT/Gemini 建立標準化作業流程", role: "流程管理專家", template: "請為主題『{{input}}』撰寫一份詳細的 SOP 標準作業程序。內容需包含：1. 目的與適用對象 2. 前置準備 3. 詳細步驟 (Step-by-step) 4. 注意事項與檢核點。確保指令明確，任何人照著做都能達成一致結果。" },
+    { id: "email", name: "商務郵件與公文", desc: "適合 ChatGPT/Gemini 潤飾商務語氣與溝通", role: "商務溝通顧問", template: "請幫我撰寫一封關於『{{input}}』的 Email。語氣需要專業、得體且目標明確。請提供：1. 吸引人的主旨 (Subject Line) 2. 結構完整的內文。" },
+    { id: "speech", name: "演講稿與簡報大綱", desc: "適合 ChatGPT/Gemini 規劃演講架構與簡報", role: "演講撰稿人", template: "我要進行一場關於『{{input}}』的演講/簡報。請為我規劃一份 10 頁的簡報大綱 (Outline)，列出每一頁的標題、核心論點 (Bullet points) 以及建議的配圖/視覺方向。" },
+    { id: "proposal", name: "商業企劃書", desc: "適合 ChatGPT/Gemini 生成完整企劃邏輯", role: "資深商業策略師", template: "請幫我擬定一份針對『{{input}}』的商業企劃書草案。結構需包含：計畫背景、執行目標 (SMART原則)、目標客群分析、執行策略、時程規劃、預算預估與預期效益。" }
+  ],
+  "行銷與創作": [
+    { id: "social", name: "社群貼文 (IG/FB)", desc: "適合 ChatGPT/Gemini 發想創意貼文與 Hashtags", role: "社群行銷小編", template: "請為主題『{{input}}』撰寫一篇吸睛的社群貼文（適用於 Instagram/Facebook）。內容需包含：1. 引人入勝的標題 (Hook) 2. 活潑互動的內文 (包含表情符號) 3. 呼籲行動 (CTA) 4. 10 個相關的高流量 Hashtags。" },
+    { id: "seo", name: "SEO 部落格文章", desc: "適合 ChatGPT/Gemini 優化關鍵字佈局與結構", role: "SEO 內容寫手", template: "請以關鍵字『{{input}}』為核心，撰寫一篇 1500 字的部落格文章。文章結構需包含 H1 標題、引言、多個 H2/H3 子標題以利閱讀，並在內容中自然佈局相關長尾關鍵字。" },
+    { id: "script", name: "短影音/影片腳本", desc: "適合 ChatGPT/Gemini 規劃短影音分鏡腳本", role: "短影音導演", template: "請為主題『{{input}}』撰寫一支 60 秒的短影音腳本。請使用表格呈現，包含三個欄位：時間碼、畫面描述 (Visual)、口白/旁白 (Audio)。節奏需輕快，前 3 秒必須有爆點。" },
+    { id: "product", name: "產品銷售文案", desc: "適合 ChatGPT/Gemini 撰寫 FAB 銷售文案", role: "廣告文案大師", template: "請運用『FAB 法則』（Feature 屬性 - Advantage 優勢 - Benefit 利益）來撰寫產品『{{input}}』的銷售文案。重點在於強調產品如何解決使用者的痛點，並激發購買慾望。" },
+    { id: "press", name: "新聞稿", desc: "適合 ChatGPT/Gemini 撰寫正式公關新聞稿", role: "公關經理", template: "請撰寫一篇關於『{{input}}』的新聞稿。風格需正式權威，結構包含：新聞標題、發布日期、導言 (5W1H)、本文詳述、公司簡介與媒體聯絡人資訊。" },
+    { id: "brainstorm", name: "創意發想", desc: "適合 Google AI Studio/ChatGPT 進行大量創意發想", role: "創意總監", template: "針對主題『{{input}}』，請進行腦力激盪，提供 10 個具備創意與市場潛力的點子/命名/行銷方案。請為每個點子附上簡短的設計理念說明。" }
+  ],
+  "分析與決策": [
+    { id: "data", name: "數據解讀與分析", desc: "適合 Google AI Studio/Gemini 1.5 分析大量數據", role: "數據分析師", template: "請幫我分析以下數據/情境『{{input}}』。請找出其中的趨勢、異常值，並根據分析結果提出 3 項具體的改進建議或商業洞察 (Insights)。" },
+    { id: "compare", name: "競品比較分析", desc: "適合 Gemini 聯網或讀取資料進行比較分析", role: "市場研究員", template: "請針對『{{input}}』進行比較分析。請製作一個比較表格，列出各方的規格、價格、優點、缺點以及適用族群。" },
+    { id: "research", name: "學術/產業研究報告", desc: "適合 NotebookLM 結合文獻進行深度研究", role: "學術研究員", template: "請撰寫一份關於『{{input}}』的研究報告大綱。內容需嚴謹，包含：研究背景、文獻回顧摘要、主要論點、方法論建議與結論。" },
+    { id: "swot", name: "SWOT/PEST 分析", desc: "適合 ChatGPT/Gemini 進行策略模型推演", role: "策略顧問", template: "請運用 SWOT 模型（優勢、劣勢、機會、威脅）來分析『{{input}}』。請詳細列出每個面向的關鍵點，並綜合提出策略建議。" }
+  ],
+  "學習與優化": [
+    { id: "explain", name: "科普與知識解釋", desc: "適合 ChatGPT/Gemini 進行科普轉譯與簡化", role: "科學傳播者", template: "請像教導 10 歲小孩一樣，用淺顯易懂的比喻和語言解釋『{{input}}』。避免使用過多專業術語，重點在於讓概念清晰易懂。" },
+    { id: "timeline", name: "時間軸與發展史", desc: "適合 Gemini/Google AI Studio 整理歷史脈絡", role: "歷史學家", template: "請列出關於『{{input}}』的關鍵發展時間軸。請按時間先後順序，列出重要節點、發生年份以及該事件的影響力。" },
+    { id: "resume", name: "求職履歷優化", desc: "適合 ChatGPT/Gemini 優化經歷與量化成果", role: "資深獵頭顧問", template: "請幫我優化這段經歷/履歷內容：『{{input}}』。請使用更具行動力與成就導向的動詞 (Action Verbs)，並盡量量化成果 (使用數據)，使其看起來更專業、更有競爭力。" },
+    { id: "translate", name: "翻譯與潤飾", desc: "適合 Gemini/ChatGPT 進行多語系流暢翻譯", role: "資深翻譯官", template: "請將以下內容翻譯成流暢、專業的英文（或指定語言）。請注重語氣的得體與用詞的精準度，而不僅是字面翻譯，需達到「信、雅、達」的標準。\n\n內容：{{input}}" }
+  ]
+};
+
+// 2. 藝術風格資料 (Image Styles)
+const STYLE_DATA = {
+  "插畫與藝術": [
+    { name: "可愛粉嫩 (Cute Pastel)", keywords: "pastel colors, soft lighting, kawaii style, low saturation, dreamy, fluffy texture, minimal background" },
+    { name: "盲盒公仔 (Blind Box)", keywords: "pop mart style, blind box toy, 3D render, C4D, Blender, cute proportions, studio lighting, PVC texture, plastic material" },
+    { name: "日式動漫 (Anime)", keywords: "anime style, manga style, vibrant colors, cel shading, Makoto Shinkai style, highly detailed, 2D illustration" },
+    { name: "街頭塗鴉 (Street Art)", keywords: "street art, graffiti style, spray paint texture, urban vibe, vibrant contrast colors, hip hop culture" },
+    { name: "像素藝術 (Pixel Art)", keywords: "pixel art, 8-bit, 16-bit, retro game style, sprite, dithering, low res, blocky" },
+    { name: "剪紙風格 (Paper Cutout)", keywords: "paper cut craft, layered paper art, origami style, 3D depth, shadow effect, paper texture" }
+  ],
+  "商業與職場": [
+    { name: "企業曼非斯 (Corp Memphis)", keywords: "corporate memphis style, flat vector illustration, geometric shapes, solid colors, minimalist, tech modern" },
+    { name: "數據儀表板 (Data Viz)", keywords: "futuristic UI, HUD, data visualization, dashboard interface, neon lines, dark background, infographic" },
+    { name: "白板馬克筆 (Whiteboard)", keywords: "whiteboard drawing, marker sketch, hand drawn doodle, blue and red marker, rough lines, brainstorming" },
+    { name: "黑板粉筆 (Blackboard)", keywords: "chalkboard drawing, chalk texture, blackboard background, hand lettering, dust effect, educational vibe" },
+    { name: "手繪筆記 (Sketchnote)", keywords: "sketchnote style, visual note taking, hand drawn icons, arrows and shapes, doodle style, notebook texture" }
+  ],
+  "擬真與攝影": [
+    { name: "商業攝影 (Product Photo)", keywords: "professional product photography, studio lighting, softbox, 4k, 8k, ultra detailed, macro shot, clean background" },
+    { name: "電影質感 (Cinematic)", keywords: "cinematic shot, movie still, photorealistic, bokeh, depth of field, dramatic lighting, color grading" },
+    { name: "極簡家居 (Minimalist Interior)", keywords: "interior design photography, minimalist style, nordic style, architectural digest, bright natural lighting" }
+  ],
+  "復古與特殊": [
+    { name: "復古報紙 (Vintage Newspaper)", keywords: "vintage newspaper style, collage art, halftone pattern, old paper texture, black and white mixed media" },
+    { name: "賽博龐克 (Cyberpunk)", keywords: "cyberpunk style, neon lights, futuristic city, synthwave, purple and blue palette, glowing effects" },
+    { name: "低多邊形 (Low Poly)", keywords: "low poly art, isometric view, 3D geometric shapes, angular, blender render, minimal details" },
+    { name: "水彩暈染 (Watercolor)", keywords: "watercolor painting, wet on wet, artistic style, soft color bleeding, textured paper, pastel tones" },
+    { name: "素描線稿 (Pencil Sketch)", keywords: "pencil sketch, graphite drawing, charcoal style, line art, rough sketch, cross hatching" },
+    { name: "網版印刷 (Risograph)", keywords: "risograph print, screen printing, grainy noise texture, limited color palette, misalignment effect" }
+  ]
+};
+
+// 3. 佈局與結構資料 (Layouts & Modifiers)
+const LAYOUT_DATA = {
+  "空間與留白": [
+    { name: "負空間 (Negative Space)", keywords: "Negative space, minimal composition" },
+    { name: "極簡構圖 (Minimalist)", keywords: "Minimalist composition, clean lines, uncluttered" },
+    { name: "解構風格 (Knolling)", keywords: "Knolling layout, deconstructed, organized neatly, flat lay" },
+    { name: "廣角視野 (Wide Angle)", keywords: "Wide angle shot, panoramic view, vast scale" },
+    { name: "乾淨背景 (Clean Background)", keywords: "Clean background, solid color background, studio backdrop" }
+  ],
+  "光影與立體感": [
+    { name: "景深 (Depth of Field)", keywords: "Depth of field, bokeh, blurred background, sharp focus" },
+    { name: "體積光 (Volumetric Lighting)", keywords: "Volumetric lighting, god rays, atmospheric lighting, hazy" },
+    { name: "柔和陰影 (Soft Shadows)", keywords: "Soft shadows, ambient occlusion, realistic shading" },
+    { name: "輪廓光 (Rim Lighting)", keywords: "Rim lighting, backlighting, edge lighting, dramatic contrast" },
+    { name: "光線追蹤 (Ray Tracing)", keywords: "Ray tracing, global illumination, highly reflective, realistic material" }
+  ],
+  "視角與動態": [
+    { name: "上帝視角 (Top-down)", keywords: "Top-down view, aerial view, drone shot, flat lay" },
+    { name: "低角度 (Low Angle)", keywords: "Low angle shot, worm's eye view, looking up, imposing" },
+    { name: "荷蘭式傾斜 (Dutch Angle)", keywords: "Dutch angle, tilted camera, dynamic action, unease" },
+    { name: "引導線 (Leading Lines)", keywords: "Leading lines, perspective lines, vanishing point" },
+    { name: "等距視角 (Isometric)", keywords: "Isometric view, 3D orthographic, diorama" }
+  ],
+  "風格質感": [
+    { name: "啞光質感 (Matte)", keywords: "Matte finish, non-reflective, smooth texture" },
+    { name: "超寫實 (Hyper-realistic)", keywords: "Hyper-realistic, unreal engine 5, 8k resolution, intricate details" },
+    { name: "霓虹發光 (Neon Glow)", keywords: "Neon glow, bioluminescent, emission shader" },
+    { name: "藍圖結構 (Blueprint)", keywords: "Blueprint style, schematic, technical drawing, white lines on blue" }
+  ]
+};
+
+// --- 組件 ---
+
+const Header = () => (
+  <header className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white shadow-lg">
+    <div className="max-w-5xl mx-auto px-6 py-8">
+      <div className="flex items-center gap-3 mb-2">
+        <Sparkles className="w-8 h-8 text-yellow-300" />
+        <h1 className="text-3xl font-bold tracking-tight">AI Prompt Generator</h1>
+      </div>
+      <p className="text-blue-100 opacity-90 max-w-2xl">
+        專為 ChatGPT, Gemini, NotebookLM, Google AI Studio 設計的結構化指令生成器。
+      </p>
+    </div>
+  </header>
+);
+
+const SectionTitle = ({ number, title }) => (
+  <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-3">
+    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 text-sm font-bold border border-indigo-200">
+      {number}
+    </span>
+    {title}
+  </h2>
+);
+
+const TextGenerator = () => {
+  const [category, setCategory] = useState(Object.keys(REPORT_DATA)[0]);
+  const [typeId, setTypeId] = useState(REPORT_DATA[Object.keys(REPORT_DATA)[0]][0].id);
+  const [userInput, setUserInput] = useState("");
+  const [generatedPrompt, setGeneratedPrompt] = useState("");
+  const [isCopied, setIsCopied] = useState(false);
+
+  const currentTypes = REPORT_DATA[category];
+  const currentType = currentTypes.find(t => t.id === typeId) || currentTypes[0];
+
+  useEffect(() => {
+    if (!currentType) return;
+    const inputPlaceholder = userInput.trim() || "[請在此輸入您的主題或內容...]";
+    // 構建完整的 Prompt
+    const fullPrompt = `請擔任【${currentType.role}】。\n\n任務說明：\n${currentType.template.replace("{{input}}", inputPlaceholder)}`;
+    setGeneratedPrompt(fullPrompt);
+  }, [category, typeId, userInput, currentType]);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(generatedPrompt);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  return (
+    <div className="space-y-8 animate-fadeIn">
+      {/* 1. 選擇類型 */}
+      <div className="grid md:grid-cols-12 gap-6">
+        <div className="md:col-span-4 space-y-4">
+          <SectionTitle number="1" title="選擇應用場景" />
+          <div className="flex flex-col gap-2">
+            {Object.keys(REPORT_DATA).map(cat => (
+              <button
+                key={cat}
+                onClick={() => { setCategory(cat); setTypeId(REPORT_DATA[cat][0].id); }}
+                className={`flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                  category === cat 
+                    ? 'bg-indigo-600 text-white shadow-md' 
+                    : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+                }`}
+              >
+                {cat}
+                {category === cat && <ChevronRight size={16} />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="md:col-span-8 space-y-4">
+          <SectionTitle number="2" title="選擇任務類型" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {currentTypes.map(type => (
+              <button
+                key={type.id}
+                onClick={() => setTypeId(type.id)}
+                className={`text-left p-4 rounded-xl border transition-all h-full flex flex-col justify-center ${
+                  typeId === type.id
+                    ? 'border-indigo-500 bg-indigo-50/50 ring-1 ring-indigo-500'
+                    : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50 bg-white'
+                }`}
+              >
+                <div className="font-bold text-slate-800 text-sm mb-1">{type.name}</div>
+                <div className="text-xs text-slate-500 line-clamp-2">{type.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 2. 輸入與輸出 */}
+      <div className="grid md:grid-cols-2 gap-8 pt-4 border-t border-slate-200">
+        <div className="flex flex-col">
+          <SectionTitle number="3" title="輸入主題或內容" />
+          <textarea
+            className="flex-1 w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none min-h-[250px] shadow-sm text-slate-700"
+            placeholder="請輸入您想生成的主題、草稿或相關數據...&#10;例如：&#10;- 2024年行銷趨勢報告 (適合 NotebookLM)&#10;- 給客戶的道歉信 (適合 ChatGPT)&#10;- 藍牙耳機產品介紹 (適合 Gemini)"
+            value={userInput}
+            onChange={(e) => setUserInput(e.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-col">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <Wand2 className="w-5 h-5 text-indigo-600" />
+              生成的 Prompt
+            </h2>
+            <button 
+              onClick={handleCopy}
+              className={`text-sm px-4 py-1.5 rounded-full flex items-center gap-2 transition-all font-medium ${
+                isCopied ? 'bg-green-600 text-white' : 'bg-slate-800 hover:bg-slate-900 text-white'
+              }`}
+            >
+              {isCopied ? <Check size={14} /> : <Copy size={14} />}
+              {isCopied ? '已複製' : '複製'}
+            </button>
+          </div>
+          <div className="flex-1 relative group">
+            <textarea 
+              readOnly
+              value={generatedPrompt}
+              className="w-full h-full min-h-[250px] p-4 rounded-xl bg-slate-900 text-slate-200 font-mono text-sm leading-relaxed border-0 outline-none resize-none"
+            />
+          </div>
+          <div className="mt-2 text-center flex items-center justify-center gap-2 text-xs text-slate-500 bg-slate-100 py-1 rounded-lg">
+            <Bot size={14} />
+            <span>已針對 ChatGPT, Gemini, NotebookLM, Google AI Studio 優化結構</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ImageGenerator = () => {
+  const [styleCategory, setStyleCategory] = useState(Object.keys(STYLE_DATA)[0]);
+  const [selectedStyle, setSelectedStyle] = useState(null);
+  const [selectedLayouts, setSelectedLayouts] = useState([]);
+  const [subject, setSubject] = useState("");
+  const [ar, setAr] = useState("--ar 16:9");
+  const [isCopied, setIsCopied] = useState(false);
+  
+  const currentStyles = STYLE_DATA[styleCategory];
+
+  const toggleLayout = (keywords) => {
+    if (selectedLayouts.includes(keywords)) {
+      setSelectedLayouts(selectedLayouts.filter(k => k !== keywords));
+    } else {
+      setSelectedLayouts([...selectedLayouts, keywords]);
+    }
+  };
+
+  const getPrompt = () => {
+    const parts = [];
+    parts.push(subject.trim() || "[Subject Description]"); // 1. Subject
+    if (selectedStyle) parts.push(selectedStyle.keywords); // 2. Style
+    if (selectedLayouts.length > 0) parts.push(selectedLayouts.join(", ")); // 3. Layouts
+    parts.push("high quality, detailed, master piece"); // 4. Quality
+    return `${parts.join(", ")} ${ar} --v 6.0`; // 5. Params
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(getPrompt());
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  return (
+    <div className="space-y-8 animate-fadeIn">
+      {/* 頂部：風格選擇 */}
+      <div className="space-y-4">
+        <SectionTitle number="1" title="選擇藝術風格" />
+        
+        {/* Category Tabs */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {Object.keys(STYLE_DATA).map(cat => (
+            <button
+              key={cat}
+              onClick={() => setStyleCategory(cat)}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                styleCategory === cat 
+                  ? 'bg-purple-600 text-white shadow-md' 
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* Styles Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+          {currentStyles.map(style => (
+            <button
+              key={style.name}
+              onClick={() => setSelectedStyle(style)}
+              className={`relative p-3 rounded-lg border text-left transition-all h-24 flex flex-col justify-between ${
+                selectedStyle?.name === style.name
+                  ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500'
+                  : 'border-slate-200 hover:border-purple-300 bg-white hover:shadow-sm'
+              }`}
+            >
+              <div className="font-bold text-slate-800 text-xs leading-tight">
+                {style.name.split(' (')[0]}
+              </div>
+              <div className="text-[10px] text-slate-400 font-medium truncate">
+                {style.name.match(/\(([^)]+)\)/)?.[1] || ""}
+              </div>
+              {selectedStyle?.name === style.name && (
+                <div className="absolute top-2 right-2 text-purple-600 bg-white rounded-full p-0.5 shadow-sm">
+                  <Check size={12} />
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-12 gap-8 pt-6 border-t border-slate-200">
+        {/* 左側：佈局與參數 */}
+        <div className="md:col-span-7 space-y-6">
+          <SectionTitle number="2" title="佈局與質感修飾" />
+          <div className="space-y-5 bg-slate-50 p-5 rounded-2xl border border-slate-100">
+            {Object.entries(LAYOUT_DATA).map(([cat, items]) => (
+              <div key={cat}>
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 ml-1">{cat}</h3>
+                <div className="flex flex-wrap gap-2">
+                  {items.map(item => {
+                    const isSelected = selectedLayouts.includes(item.keywords);
+                    return (
+                      <button
+                        key={item.name}
+                        onClick={() => toggleLayout(item.keywords)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-all ${
+                          isSelected
+                            ? 'bg-slate-800 text-white border-slate-800 shadow-md'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                        }`}
+                      >
+                        {item.name.split(' (')[0]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <h3 className="text-sm font-bold text-slate-800 mb-3">圖片比例 (Aspect Ratio)</h3>
+            <div className="flex flex-wrap gap-2">
+               {["--ar 1:1", "--ar 16:9", "--ar 9:16", "--ar 4:3", "--ar 21:9"].map(opt => (
+                 <button
+                   key={opt}
+                   onClick={() => setAr(opt)}
+                   className={`px-3 py-1.5 rounded-lg text-xs font-mono border ${
+                     ar === opt ? 'bg-purple-100 text-purple-700 border-purple-300' : 'bg-white text-slate-500 border-slate-200'
+                   }`}
+                 >
+                   {opt}
+                 </button>
+               ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 右側：輸入與結果 */}
+        <div className="md:col-span-5 flex flex-col gap-6">
+           <div>
+            <SectionTitle number="3" title="主體描述" />
+            <textarea
+              className="w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none text-sm min-h-[120px] shadow-sm"
+              placeholder="描述你想畫的內容...&#10;(例如：一隻戴著太空頭盔的貓，漂浮在火星上)"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+            />
+           </div>
+
+          <div className="flex-1 flex flex-col">
+             <div className="flex justify-between items-center mb-3">
+              <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Midjourney Prompt</h2>
+              <button 
+                onClick={handleCopy}
+                className={`text-xs px-3 py-1.5 rounded-full flex items-center gap-1 transition-all ${
+                  isCopied ? 'bg-green-600 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'
+                }`}
+              >
+                {isCopied ? <Check size={12} /> : <Copy size={12} />}
+                {isCopied ? '已複製' : '複製'}
+              </button>
+            </div>
+            <div className="flex-1 bg-slate-900 p-4 rounded-xl border border-slate-800 font-mono text-sm text-slate-300 break-words leading-relaxed overflow-y-auto max-h-[300px]">
+              {getPrompt()}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const App = () => {
+  const [activeTab, setActiveTab] = useState("text");
+
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20 selection:bg-indigo-100 selection:text-indigo-700">
+      <Header />
+      
+      <main className="max-w-5xl mx-auto mt-8 px-4">
+        {/* Tab Navigation */}
+        <div className="flex p-1 rounded-2xl bg-white shadow-sm border border-slate-200 mb-8 max-w-2xl mx-auto">
+          <button
+            onClick={() => setActiveTab("text")}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold transition-all ${
+              activeTab === "text" 
+                ? 'bg-indigo-600 text-white shadow-md' 
+                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+            }`}
+          >
+            <PenTool size={18} />
+            文案與報告生成 (Text)
+          </button>
+          <button
+            onClick={() => setActiveTab("image")}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold transition-all ${
+              activeTab === "image" 
+                ? 'bg-purple-600 text-white shadow-md' 
+                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+            }`}
+          >
+            <ImageIcon size={18} />
+            圖像與風格生成 (Image)
+          </button>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-6 md:p-10 min-h-[600px] transition-all">
+          {activeTab === "text" ? <TextGenerator /> : <ImageGenerator />}
+        </div>
+      </main>
+      
+      <footer className="max-w-5xl mx-auto mt-12 text-center text-slate-400 text-sm">
+        <p>© 2024 AI Prompt Generator. Created based on your Knowledge Base.</p>
+      </footer>
+    </div>
+  );
+};
+
+export default App;
